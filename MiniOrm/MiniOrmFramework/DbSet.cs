@@ -6,6 +6,7 @@ namespace MiniOrmFramework
         where TEntity : class, new()
     {
         internal ChangeTracker<TEntity> ChangeTracker { get; set; }
+
         internal IList<TEntity> Entities { get; set; }
 
         internal DbSet(IEnumerable<TEntity> entities)
@@ -36,6 +37,15 @@ namespace MiniOrmFramework
             {
                 throw new ArgumentNullException(nameof(item), "item cannot be null");
             }
+
+            var removedSuccefully = this.Entities.Remove(item);
+
+            if (removedSuccefully)
+            {
+                this.ChangeTracker.Remove(item);
+            }
+
+            return removedSuccefully;
         }
 
         public void Clear()
@@ -43,6 +53,14 @@ namespace MiniOrmFramework
             while (this.Entities.Any())
             {
                 var entity = this.Entities.First();
+                this.Remove(entity);
+            }
+        }
+
+        public void RemoveRange(IEnumerable<TEntity> entities)
+        {
+            foreach (var entity in entities.ToArray())
+            {
                 this.Remove(entity);
             }
         }
@@ -59,13 +77,13 @@ namespace MiniOrmFramework
 
         public IEnumerator<TEntity> GetEnumerator()
         {
-            throw new NotImplementedException();
+            return this.Entities.GetEnumerator();
         }
 
 
         IEnumerator IEnumerable.GetEnumerator()
         {
-            throw new NotImplementedException();
+            return GetEnumerator();
         }
     }
 }

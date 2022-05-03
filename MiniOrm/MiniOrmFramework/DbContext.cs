@@ -1,9 +1,12 @@
-﻿namespace MiniOrmFramework
+﻿using System.Reflection;
+
+namespace MiniOrmFramework
 {
-    internal class DbContext
+    public abstract class DbContext
     {
-        // connection...
-        //Dictionary....db set properties
+        private readonly DatabaseConnection connection;
+
+        private readonly Dictionary<Type, PropertyInfo> dbSetProperties;
 
         internal static readonly Type[] AllowedSqlTypes =
         {
