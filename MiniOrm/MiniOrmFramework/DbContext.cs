@@ -20,4 +20,18 @@ namespace MiniOrmFramework
             typeof(DateTime),
         };
     }
+
+    public ClassNamePlaceholder(string connectionString)
+    {
+        this.connection = new DatabaseConnection(connectionString);
+
+        this.dbSetProperties = this.DiscoverDbSets();
+
+        using (new ConnectionManager(connection))
+        {
+            this.InitializeDbSets();
+        }
+
+        this.MappAllRelations();
+    }
 }
