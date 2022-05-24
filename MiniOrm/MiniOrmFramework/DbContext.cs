@@ -1,4 +1,5 @@
-﻿using System.Reflection;
+﻿using System.Data.SqlClient;
+using System.Reflection;
 
 namespace MiniOrmFramework
 {
@@ -22,16 +23,16 @@ namespace MiniOrmFramework
 
         public DbContext(string connectionString)
         {
-        this.connection = new DatabaseConnection(connectionString);
+            this.connection = new DatabaseConnection(connectionString);
 
-        this.dbSetProperties = this.DiscoverDbSets();
+            this.dbSetProperties = this.DiscoverDbSets();
 
-        using (new ConnectionManager(connection))
-        {
-            this.InitializeDbSets();
-        }
+            using (new ConnectionManager(connection))
+            {
+                this.InitializeDbSets();
+            }
 
-        this.MappAllRelations();
+            this.MappAllRelations();
         }
 
         public void SaveChanges()
@@ -40,13 +41,13 @@ namespace MiniOrmFramework
                 .Select(pi => pi.Value.GetValue(this))
                 .ToArray();
 
-            foreach(IEnumerable<object> dbSet in dbSets)
+            foreach (IEnumerable<object> dbSet in dbSets)
             {
                 var invalidEntities = dbSet
                     .Where(entity => !IsObjectValid(entity))
                     .ToArray();
 
-                if(invalidEntities.Any())
+                if (invalidEntities.Any())
                 {
                     throw new InvalidOperationException(
                         $"{invalidEntities.Length} Invalid Entities found in {dbSet.GetType().Name!}"
@@ -54,11 +55,11 @@ namespace MiniOrmFramework
                 }
             }
 
-            using(new ConnectionManager(this.connection))
+            using (new ConnectionManager(this.connection))
             {
-                using(var transaction = this.connection.StartTransaction())
+                using (var transaction = this.connection.StartTransaction())
                 {
-                    foreach(IEnumerable dbSet in dbSets)
+                    foreach (IEnumerable dbSet in dbSets)
                     {
                         var dbSetType = dbSet.GetType().GetGenericArguments().First();
 
@@ -68,17 +69,17 @@ namespace MiniOrmFramework
 
                         try
                         {
-                            persistedMethod.Invoke(this, new object[] {dbSet});
+                            persistedMethod.Invoke(this, new object[] { dbSet });
                         }
-                        catch(TargetInvocationException tie)
+                        catch (TargetInvocationException tie)
                         {
                             throw tie.InnerException;
                         }
-                        catch(InvalidOperationException)
+                        catch (InvalidOperationException)
                         {
                             transaction.Rollback();
                         }
-                        catch(SqlException)
+                        catch (SqlException)
                         {
                             transaction.Rollback();
                             throw;
@@ -87,7 +88,7 @@ namespace MiniOrmFramework
 
                     transaction.Commit();
                 }
-            } 
+            }
         }
 
         private void Persist<TEntity>(DbSet<TEntity> dbSet)
@@ -97,19 +98,19 @@ namespace MiniOrmFramework
 
             var columns = this.connection.FetchColumnNames(tableName).ToArray();
 
-            if(dbSet.ChangeTracker.Added.Any())
+            if (dbSet.ChangeTracker.Added.Any())
             {
                 this.connection.InsertEntities(dbSet.ChangeTracker.Added, tableName, columns);
             }
 
             var modifiedEntities = dbSet.ChangeTracker.GetModifiedEntities(dbSet).ToArray();
 
-            if(modifiedEntities.Any())
+            if (modifiedEntities.Any())
             {
                 this.connection.UpdateEntities(modifiedEntities, tableName, columns);
             }
 
-            if(dbSet.ChangeTracker.Removed.Any())
+            if (dbSet.ChangeTracker.Removed.Any())
             {
                 this.connection.DeleteEntities(dbSet.ChangeTracker.Removed, tableName, columns);
             }
@@ -117,7 +118,7 @@ namespace MiniOrmFramework
 
         private void InitializeObjects()
         {
-            foreach(var dbSet in this.dbSetProperties)
+            foreach (var dbSet in this.dbSetProperties)
             {
                 var dbSetType = dbSet.Key;
                 var dbSetProperty = dbSet.Value;
@@ -126,7 +127,7 @@ namespace MiniOrmFramework
                     .GetMethod("PopulateDbSet", BindingFlags.Instance | BindingFlags.NonPublic)
                     .MakeGenericMethod(dbSetType);
 
-                populateDbSetGeneric.Invoke(this, new object[]{dbSetProperty});
+                populateDbSetGeneric.Invoke(this, new object[] { dbSetProperty });
             }
         }
 
@@ -135,7 +136,54 @@ namespace MiniOrmFramework
         {
             var entities = LoadTableEntities<TEntity>();
 
-            var 
+            var dbSetInstance = new DbSet<TEntity>(entities);
+            ReflectionHelper.ReplaceBackingField(this, dbSet.Name, dbSetInstance);
+        }
+
+        private void MappAllRelations()
+        {
+            foreach (var dbSetProperty in this.dbSetProperties)
+            {
+                var dbSetType = dbSetProperty.Key;
+
+                var mapAllRelationsGeneric = typeof(DbContext)
+                    .GetMethod("MapRelations", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .MakeGenericMethod(dbSetType);
+
+                var dbSet = dbSetProperty.Value.GetValue(this);
+
+                mapRelationsGeneric.Invoke(this, new[] { dbSet });
+            }
+        }
+
+        private void MapRelations<TEntity>(DbSet<TEntity> dbSet)
+            where TEntity : class, new()
+        {
+            var entityType = typeof(TEntity);
+
+            MapNavigationProperties(dbSet);
+
+            var collections = entityType
+                .GetProperties()
+                .Where(pi =>
+                    pi.PropertyType.IsGenericType &&
+                    pi.PropertyType.GetGenericTypeDefinition() == typeof(ICollection<>))
+                .ToArray();
+
+            foreach (var collection in collections)
+            {
+                var collectionType = collection.PropertyType.GenericTypeArguments.First();
+
+                var mapCollectionMethod = typeof(DbContext)
+                    .GetMethod("MapCollection", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .MakeGenericMethod(entityType, collectionType);
+
+                mapCollectionMethod.Invoke(this, new object[] { dbSet, collection });
+            }
+        }
+
+        private void MappCollection<TDbSet, TCollection>() 
+        {
         }
     }
 }
