@@ -1,4 +1,6 @@
-﻿using System.Data.SqlClient;
+﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+using System.Data.SqlClient;
 using System.Reflection;
 
 namespace MiniOrmFramework
@@ -146,7 +148,7 @@ namespace MiniOrmFramework
             {
                 var dbSetType = dbSetProperty.Key;
 
-                var mapAllRelationsGeneric = typeof(DbContext)
+                var mapRelationsGeneric = typeof(DbContext)
                     .GetMethod("MapRelations", BindingFlags.Instance | BindingFlags.NonPublic)
                     .MakeGenericMethod(dbSetType);
 
@@ -182,8 +184,28 @@ namespace MiniOrmFramework
             }
         }
 
-        private void MappCollection<TDbSet, TCollection>() 
+        private void MappCollection<TDbSet, TCollection>(DbSet<TDbSet> dbSet, PropertyInfo collectionProperty)
+            where TDbSet : class, new() where TCollection : class, new()
         {
+            var entityType = typeof(TDbSet);
+            var collectionType = typeof(TCollection);
+
+            var primaryKeys = collectionType.GetProperties()
+                .Where(pi => pi.HasAttribute<KeyAttribute>())
+                .ToArray();
+
+            var primaryKey = primaryKeys.First();
+            var foreignKey = entityType.GetProperties()
+                .First(pi => pi.HasAttribute<KeyAttribute>());
+
+            var isManyToMany = primaryKeys.Length >= 2;
+
+            if (isManyToMany)
+            {
+                primaryKey = collectionType.GetProperties()
+                    .First(pi => collectionType.GetProperty(pi.GetCustomAttribute<ForeignKeyAttribute>().Name)
+                    .PropertyType == entityType);
+            }
         }
     }
 }
