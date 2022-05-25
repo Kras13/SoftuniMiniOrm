@@ -221,7 +221,7 @@ namespace MiniOrmFramework
             }
         }
 
-        private void MapNavigationProperties<TEntity>(DbSet<TEntity> dbSet)
+        private void MapNavigationProperties<TEntity>(DbSet<TEntity> dbSet, string conflict1)
             where TEntity : class, new()
         {
             var entityType = typeof(TEntity);
