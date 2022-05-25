@@ -251,6 +251,8 @@ namespace MiniOrmFramework
                             navigationPrimaryKey.GetValue(currentNavigationProperty).Equals(foreignKeyValue));
 
                     navigationProperty.SetValue(entity, navigationPropertyValue);
+
+                    //branch testing
                 }
             }
 
