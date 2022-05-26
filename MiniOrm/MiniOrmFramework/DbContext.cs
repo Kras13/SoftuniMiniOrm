@@ -189,7 +189,7 @@
             }
         }
 
-        private void MappCollection<TDbSet, TCollection>(DbSet<TDbSet> dbSet, PropertyInfo collectionProperty)
+        private void MapCollection<TDbSet, TCollection>(DbSet<TDbSet> dbSet, PropertyInfo collectionProperty)
             where TDbSet : class, new() where TCollection : class, new()
         {
             var entityType = typeof(TDbSet);
