@@ -1,10 +1,15 @@
-﻿using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
-using System.Data.SqlClient;
-using System.Reflection;
-
-namespace MiniOrmFramework
+﻿namespace MiniOrmFramework
 {
+    using System.Collections;
+    using System.Collections.Generic;
+    using System.ComponentModel.DataAnnotations;
+    using System.ComponentModel.DataAnnotations.Schema;
+    using System.Data.SqlClient;
+    using System.Reflection;
+    using System.Linq;
+    using System;
+
+
     public abstract class DbContext
     {
         private readonly DatabaseConnection connection;
@@ -118,7 +123,7 @@ namespace MiniOrmFramework
             }
         }
 
-        private void InitializeObjects()
+        private void InitializeDbSets()
         {
             foreach (var dbSet in this.dbSetProperties)
             {
@@ -251,11 +256,66 @@ namespace MiniOrmFramework
                             navigationPrimaryKey.GetValue(currentNavigationProperty).Equals(foreignKeyValue));
 
                     navigationProperty.SetValue(entity, navigationPropertyValue);
-
-                    //branch testing
                 }
             }
+        }
 
+        private static bool IsObjectValid(object e)
+        {
+            var validationContext = new ValidationContext(e);
+            var validationErrors = new List<ValidationResult>();
+
+            var validationResult =
+                Validator.TryValidateObject(e, validationContext, validationErrors, validateAllProperties: true);
+
+            return validationResult;
+        }
+
+        private IEnumerable<TEntity> LoadTableEntities<TEntity>()
+            where TEntity : class, new()
+        {
+            var table = typeof(TEntity);
+            var columns = GetEntityColumnNames(table);
+            var tableName = GetTableName(table);
+            var fetchedRows = this.connection.FetchResultSet<TEntity>(tableName, columns).ToArray();
+            return fetchedRows;
+        }
+
+        private string GetTableName(Type tableType)
+        {
+            var tableName = ((TableAttribute)Attribute.GetCustomAttribute(tableType, typeof(TableAttribute))).Name;
+
+            if (tableName == null)
+            {
+                tableName = this.dbSetProperties[tableType].Name;
+            }
+
+            return tableName;
+        }
+
+        private Dictionary<Type, PropertyInfo> DiscoverDbSets()
+        {
+            var dbSets = this.GetType().GetProperties()
+                .Where(pi => pi.PropertyType.GetGenericTypeDefinition() == typeof(DbSet<>))
+                .ToDictionary(pi => pi.PropertyType.GetGenericArguments().First(), pi => pi);
+
+            return dbSets;
+        }
+
+        private string[] GetEntityColumnNames(Type table)
+        {
+            var tableName = this.GetTableName(table);
+            var dbColumns =
+                this.connection.FetchColumnNames(tableName);
+
+            var columns = table.GetProperties()
+                .Where(pi => dbColumns.Contains(pi.Name) &&
+                        !pi.HasAttribute<NotMappedAttribute>() &&
+                        AllowedSqlTypes.Contains(pi.PropertyType))
+                .Select(pi => pi.Name)
+                .ToArray();
+
+            return columns;
         }
     }
 }
