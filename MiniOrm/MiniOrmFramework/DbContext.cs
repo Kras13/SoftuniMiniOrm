@@ -283,7 +283,7 @@
 
         private string GetTableName(Type tableType)
         {
-            var tableName = ((TableAttribute)Attribute.GetCustomAttribute(tableType, typeof(TableAttribute))).Name;
+            var tableName = ((TableAttribute)Attribute.GetCustomAttribute(tableType, typeof(TableAttribute)))?.Name;
 
             if (tableName == null)
             {
