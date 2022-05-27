@@ -9,6 +9,8 @@ public class StartUp
 
         var selectedPerson = context.People.First();
 
+        // in new branch
+
         Console.WriteLine(selectedPerson.Name);
     }
 }
